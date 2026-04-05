@@ -14,13 +14,13 @@ Original Content
 [2] Critic (kimi-k2.5)         Score & find AI artifacts
     |
     v
-[3] Refiner (deepseek-v3.2)    Fix issues from critique
+[3] Refiner (kimi-k2.5)         Fix issues from critique
     |
     v
-[4] De-AI (mistral-large-3)    Final pass removing AI patterns
+[4] De-AI (kimi-k2.5)          Final pass removing AI patterns
     |
     v
-[5] i18n (kimi-k2.5)           Translate to zh-CN
+[5] i18n (claude-opus)          Translate to zh-CN
 ```
 
 Each step uses a **different model** to avoid single-model echo chamber effects. The cross-model approach catches AI writing patterns that the original model wouldn't notice.
@@ -65,9 +65,9 @@ python3 apply.py process/20260405-120000/
 |------|-------|-----------|
 | Writer | claude-opus | Best structured output, follows format rules |
 | Critic | kimi-k2.5 | Different vendor catches Claude-specific patterns |
-| Refiner | deepseek-v3.2 | Third perspective, good at following critique |
-| De-AI | mistral-large-3 | European model, different writing tendencies |
-| i18n | kimi-k2.5 | Strong bilingual Chinese capability |
+| Refiner | kimi-k2.5 | Cheap, good at following critique instructions |
+| De-AI | kimi-k2.5 | Detects and removes Claude-specific AI patterns |
+| i18n | claude-opus | Highest quality bilingual translation |
 
 ## Agent Prompts
 

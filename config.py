@@ -57,9 +57,9 @@ MODELS: dict[str, ModelConfig] = {
 STEP_MODELS = {
     "writer": "claude-opus",
     "critic": "kimi-k2.5",
-    "refiner": "deepseek-v3.2",
-    "deai": "mistral-large-3",
-    "i18n": "kimi-k2.5",
+    "refiner": "kimi-k2.5",
+    "deai": "kimi-k2.5",
+    "i18n": "claude-opus",
 }
 
 BEDROCK_REGION = "us-east-1"
