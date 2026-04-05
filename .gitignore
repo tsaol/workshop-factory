@@ -1,0 +1,4 @@
+process/
+__pycache__/
+*.pyc
+.env
