@@ -17,10 +17,13 @@ Original Content
 [3] Refiner (kimi-k2.5)         Fix issues from critique
     |
     v
-[4] De-AI (kimi-k2.5)          Final pass removing AI patterns
+[4] De-AI (kimi-k2.5)          Remove AI writing patterns
     |
     v
-[5] i18n (claude-opus)          Translate to zh-CN
+[5] Natural (kimi-k2.5)        Polish expression to sound human
+    |
+    v
+[6] i18n (claude-opus)          Translate to zh-CN
 ```
 
 Each step uses a **different model** to avoid single-model echo chamber effects. The cross-model approach catches AI writing patterns that the original model wouldn't notice.
@@ -47,6 +50,31 @@ python3 run.py --steps critic --all
 python3 run.py --dry-run --all
 ```
 
+## Participant Review
+
+Run an AI participant through the entire workshop to find blockers, friction, and polish issues:
+
+```bash
+# Review English content
+python3 review.py --workshop-dir /path/to/workshop
+
+# Review Chinese translation
+python3 review.py --workshop-dir /path/to/workshop --lang zh
+
+# Use a cheaper model for quick pass
+python3 review.py --workshop-dir /path/to/workshop --model kimi-k2.5
+
+# Dry run (show input stats)
+python3 review.py --workshop-dir /path/to/workshop --dry-run
+```
+
+The reviewer reads all pages in order as a first-time participant and produces a prioritized report:
+- **P0 Blockers** — participant gets stuck, cannot proceed
+- **P1 Friction** — participant slows down or gets confused
+- **P2 Polish** — minor improvements
+
+Output saved to `process/review-en-YYYYMMDD-HHMMSS.md`.
+
 ## Apply Results
 
 After reviewing the pipeline output:
@@ -67,6 +95,7 @@ python3 apply.py process/20260405-120000/
 | Critic | kimi-k2.5 | Different vendor catches Claude-specific patterns |
 | Refiner | kimi-k2.5 | Cheap, good at following critique instructions |
 | De-AI | kimi-k2.5 | Detects and removes Claude-specific AI patterns |
+| Natural | kimi-k2.5 | Polishes expression to sound like a real SA wrote it |
 | i18n | claude-opus | Highest quality bilingual translation |
 
 ## Agent Prompts
@@ -77,7 +106,9 @@ Each step has a dedicated prompt in `agents/`:
 - `workshop-critic.md` — 5-dimension scoring (accuracy, clarity, AI artifacts, pedagogy, format)
 - `workshop-refiner.md` — Fix issues from critique while preserving technical content
 - `workshop-deai.md` — Final AI pattern removal (phrases, punctuation, over-structure)
+- `workshop-natural.md` — Expression naturalizer (sentence rhythm, contractions, human voice)
 - `workshop-i18n.md` — EN→zh-CN translation preserving technical terms
+- `workshop-reviewer.md` — First-time participant walkthrough, finds blockers and friction
 
 ## Output Structure
 
@@ -90,8 +121,9 @@ process/20260405-120000/
 │   ├── v1_draft.md        # Writer output
 │   ├── critique.md        # Critic scores
 │   ├── v2_refined.md      # Refiner output
-│   ├── v3_final.md        # De-AI output (final EN)
-│   ├── v3_final.zh.md     # i18n output (final ZH)
+│   ├── v3_deai.md         # De-AI output
+│   ├── v4_final.md        # Natural output (final EN)
+│   ├── v4_final.zh.md     # i18n output (final ZH)
 │   └── manifest.txt       # Source file reference
 └── 02-configure-agent/
     └── ...
@@ -110,3 +142,5 @@ This pipeline produces content compatible with AWS Workshop Studio:
 - /static/images/ references
 - Front matter (title, weight)
 - Bilingual EN/ZH content pairs
+
+For the complete Workshop Studio authoring reference (repo setup, contentspec.yaml, markdown syntax, git plugin, preview, publishing, screenshot automation, gotchas), see **[WORKSHOP_STUDIO_GUIDE.md](WORKSHOP_STUDIO_GUIDE.md)**.
