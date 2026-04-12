@@ -59,6 +59,7 @@ STEP_MODELS = {
     "critic": "kimi-k2.5",
     "refiner": "kimi-k2.5",
     "deai": "kimi-k2.5",
+    "natural": "kimi-k2.5",
     "i18n": "claude-opus",
 }
 

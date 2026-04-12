@@ -24,7 +24,7 @@ PIPELINE_DIR = Path(__file__).parent
 AGENTS_DIR = PIPELINE_DIR / "agents"
 PROCESS_DIR = PIPELINE_DIR / "process"
 
-ALL_STEPS = ["writer", "critic", "refiner", "deai", "i18n"]
+ALL_STEPS = ["writer", "critic", "refiner", "deai", "natural", "i18n"]
 
 
 def extract_prompt(agent_path: Path) -> str:
@@ -136,17 +136,27 @@ def process_file(
         elif step == "deai":
             result = run_step(client, "deai", current)
             if result:
-                v3_path = out_dir / "v3_final.md"
+                v3_path = out_dir / "v3_deai.md"
                 v3_path.write_text(result, encoding="utf-8")
                 current = result
-                log_step(log_path, "deai", model_slug, "ok", f"-> v3_final.md")
+                log_step(log_path, "deai", model_slug, "ok", f"-> v3_deai.md")
             else:
                 log_step(log_path, "deai", model_slug, "FAIL", "empty output")
+
+        elif step == "natural":
+            result = run_step(client, "natural", current)
+            if result:
+                v4_path = out_dir / "v4_final.md"
+                v4_path.write_text(result, encoding="utf-8")
+                current = result
+                log_step(log_path, "natural", model_slug, "ok", f"-> v4_final.md")
+            else:
+                log_step(log_path, "natural", model_slug, "FAIL", "empty output")
 
         elif step == "i18n":
             result = run_step(client, "i18n", current)
             if result:
-                zh_path = out_dir / "v3_final.zh.md"
+                zh_path = out_dir / "v4_final.zh.md"
                 zh_path.write_text(result, encoding="utf-8")
                 log_step(log_path, "i18n", model_slug, "ok", f"-> v3_final.zh.md")
             else:

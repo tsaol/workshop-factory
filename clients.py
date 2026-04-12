@@ -57,6 +57,7 @@ class BedrockClient:
         user_message: str,
         max_tokens: int = 8192,
         temperature: float = 0.7,
+        images: list[dict] | None = None,
     ) -> InvokeResult:
         last_error = None
         for attempt in range(MAX_RETRIES):
