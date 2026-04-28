@@ -18,6 +18,11 @@ Everything you need to build, preview, and publish an AWS Workshop Studio worksh
 - [Screenshot Automation](#screenshot-automation)
 - [Content Pipeline Integration](#content-pipeline-integration)
 - [Gotchas and Lessons Learned](#gotchas-and-lessons-learned)
+- [Content Localization Automation](#content-localization-automation)
+- [Screenshot Best Practices](#screenshot-best-practices)
+- [Development Environment](#development-environment)
+- [Scaling Collaboration with GitLab](#scaling-collaboration-with-gitlab)
+- [Content Quality Checklist](#content-quality-checklist)
 
 ---
 
@@ -86,7 +91,7 @@ assets/*
 preview_build
 ```
 
-The `assets/` directory is for Workshop Studio supplementary files (PDFs, etc.) managed separately. `preview_build` is a downloaded binary that shouldn't be committed.
+The `assets/` directory stores S3-managed files (large binaries, datasets, downloadable documents). These are NOT version controlled — they must be manually synced to S3. `preview_build` is a compiled binary that shouldn't be committed.
 
 ---
 
@@ -423,6 +428,118 @@ Rules:
 - Screenshots: 1200-1400px wide (browser scales them)
 - Diagrams: variable, ensure readable at 50% zoom
 - Target file size: 100-300KB per image
+
+---
+
+## S3 Assets (the `assets/` Directory)
+
+### Overview
+
+Workshop Studio provides two asset storage mechanisms:
+
+| Type | Folder | In Git? | Use Case |
+|------|--------|---------|----------|
+| S3 Assets | `assets/` | No (`.gitignore`) | Infrastructure templates referenced via magic variables, Lambda zip archives |
+| Repository Assets | `static/` | Yes | **Downloadable files**, images, CloudFormation templates, source code |
+
+**CRITICAL:** S3 assets (`/assets/`) cannot be used as direct download links in published workshops. Standard markdown links like `[file.docx](/assets/file.docx)` will render as links but produce **404 errors** when clicked, because the Workshop Studio SPA router intercepts the URL. For participant-downloadable files, use Repository Assets (`/static/`) instead.
+
+### S3 Asset Bucket
+
+Each workshop has a dedicated S3 bucket:
+
+```
+s3://ws-assets-us-east-1/<workshop-uuid>
+```
+
+The workshop UUID is extracted from the git remote URL:
+
+```
+workshopstudio://ws-content-<UUID>/<workshop-name>
+                         ^^^^^^
+                    This is your UUID
+```
+
+### Syncing Assets
+
+Get credentials from Workshop Studio console → **Credentials** → **Assets access instructions**.
+
+```bash
+# Set temporary credentials
+export AWS_DEFAULT_REGION="us-east-1"
+export AWS_ACCESS_KEY_ID="ASIA..."
+export AWS_SECRET_ACCESS_KEY="..."
+export AWS_SESSION_TOKEN="..."
+
+# Download S3 assets to local
+aws s3 sync s3://ws-assets-us-east-1/<UUID> ./assets
+
+# Upload local assets to S3
+aws s3 sync ./assets s3://ws-assets-us-east-1/<UUID>
+```
+
+**WARNING:** Do NOT use `--delete` when downloading from S3 if S3 is empty — it will delete all your local files. Only use `--delete` when you intentionally want to mirror one side to the other.
+
+### Referencing S3 Assets in Markdown
+
+S3 assets are referenced using the `:assetUrl` directive (NOT standard markdown links):
+
+```markdown
+```bash
+curl ':assetUrl{path="/resources/template.yaml" source=s3}' --output template.yaml
+```
+```
+
+The `:assetUrl` directive generates a signed CloudFront URL at build time. The `source=s3` parameter tells Workshop Studio to look in the S3 assets bucket. Without `source=s3`, it defaults to `repo` (the `static/` folder).
+
+**Do NOT use standard markdown links for S3 assets:**
+```markdown
+<!-- WRONG — will 404 on published workshop -->
+[Download file](/assets/file.csv)
+
+<!-- RIGHT — use static/ for downloadable files -->
+[Download file](/static/data/file.csv)
+```
+
+### Downloadable Files for Participants
+
+For files that participants need to download (datasets, documents, templates), use Repository Assets:
+
+```
+static/
+└── data/
+    └── workshop-materials.zip    # Bundle all downloadable files
+```
+
+Reference in markdown:
+```markdown
+[Download Workshop Materials (zip)](/static/data/workshop-materials.zip)
+```
+
+This works because `static/` files are served directly by CloudFront without SPA routing interference.
+
+### Triggering a Build After Asset Upload
+
+S3 assets are frozen at build time. After uploading new assets, trigger a rebuild:
+
+```bash
+git commit --allow-empty -m "trigger build for updated assets"
+git push
+```
+
+Existing builds do NOT include new assets — you must create a new build.
+
+### Common File Types
+
+| File Type | Store In | Reason |
+|-----------|----------|--------|
+| Participant downloads (DOCX, PDF, CSV) | `static/data/` (git) | Direct download links work |
+| Screenshots/images | `static/images/` (git) | Version controlled, direct URL |
+| CloudFormation templates | `static/` (git) | Version controlled |
+| IAM policies | `static/` (git) | Version controlled |
+| Source code | `static/` (git) | Version controlled |
+| Lambda zip archives | `assets/` (S3) | Referenced via magic variables in CFN |
+| Large binaries (>50MB) | `assets/` (S3) | Too large for git, use `:assetUrl` directive |
 
 ---
 
@@ -837,3 +954,209 @@ git push
 16. **Other workshops on the same machine may use the old `.bundle` remote format.** That's the pre-migration CodeCommit approach. New workshops use `workshopstudio://`.
 
 17. **Draft flows/resources in AWS services are tied to the IAM identity that created them.** If you create something via a federation token, you can only see it while using that same token. This matters for automation.
+
+18. **`aws s3 sync --delete` is destructive.** If S3 is empty and you sync FROM S3 with `--delete`, it wipes all local files. Always sync TO S3 (`./assets s3://...`) when uploading, and omit `--delete` unless you're sure.
+
+19. **S3 assets are frozen at build time.** Uploading new files to S3 does NOT update existing builds. You must trigger a new build (`git commit --allow-empty`) and create a new event from that build.
+
+20. **`/assets/` links 404 on published workshops.** Standard markdown links like `[file](/assets/file.docx)` produce "Page not found" errors because the Workshop Studio SPA router intercepts them. For downloadable files, put them in `static/data/` and link with `/static/data/file.zip`. S3 assets should only be referenced via the `:assetUrl` directive or magic variables in CloudFormation.
+
+21. **Bundle downloadable files into a single zip.** Following the pattern from the reference Quick Suite workshop: put all participant materials in `static/data/workshop-materials.zip` with a single download link, then list the zip contents on the page.
+
+---
+
+## Content Localization Automation
+
+Workshop Studio provides an automated localization tool that uses Amazon Bedrock + Claude to translate workshop content.
+
+### Tool Setup
+
+```bash
+git clone git@ssh.gitlab.aws.dev:rmandh/autolocalization4workshops.git
+cd autolocalization4workshops/
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Configuration
+
+In `localize-workshop-studio-project.py`, add Chinese support:
+
+```python
+supported_languages = {
+    "en-US": { "extension": "en", "language": "English" },
+    "zh-CN": { "extension": "zh", "language": "Chinese" },
+}
+```
+
+Set the target:
+
+```python
+content_path = './your_workshop_path/content/'
+code_language = "zh-CN"
+```
+
+### How It Works
+
+- Source files must use `.en.md` extension
+- Translates to `.zh.md` (or other language) automatically
+- Preserves code blocks, URLs, frontmatter `weight` values, AWS service names, Workshop Studio directives
+- Files > 13,000 chars are split at `##` headings, translated in chunks, then reassembled
+- Uses exponential backoff for Bedrock API rate limits
+
+### Important Caveats
+
+- **AI translations require human validation** — never publish unreviewed translations
+- Have native speakers or qualified translators review all content
+- Technical terms and AWS UI labels should remain in English
+- Workshop Studio shortcodes/directives need manual verification after translation
+- Author: Armando Barrales (rmandh@amazon.com)
+
+---
+
+## Screenshot Best Practices
+
+From the Workshop Studio Content Hygiene guide (by Marco Sommella):
+
+### Consistency Rules
+
+When screenshots need annotations (arrows, boxes), use a consistent format across all contributors:
+
+| Annotation | Style |
+|-----------|-------|
+| **Blur** | Pixelate, intensity 7 |
+| **Box** | Rectangle, Red (#ff0000), Thickness 3, No shadows |
+| **Arrow** | Red (#ff0000), Width 3, equilateral arrow, solid style, no shadows |
+
+### Recommended Tools
+
+- **Snagit** (available on IT Marketplace for macOS and Windows) — for screenshot capture and annotation
+- Use the same tool across all team members for visual consistency
+
+### Tips
+
+- Screenshots are the most time-consuming part of workshop authoring
+- Define annotation rules upfront to avoid retakes
+- Blur sensitive information (account IDs, emails, API keys) with pixelate intensity 7
+- Keep screenshots at consistent viewport size (1920x1080 recommended)
+
+---
+
+## Development Environment
+
+Recommended IDE setup from Workshop Studio Best Practices:
+
+1. **Visual Studio Code** with extensions:
+   - Markdown Linter — validates markdown syntax
+   - Git History — review and compare git evolution
+   - CloudFormation Linter — validates CFN templates
+2. **Workshop Studio Linter** — see the [README](https://gitlab.aws.dev) for installation
+3. **Python 3.x** — for localization tool and CloudFormation linter
+
+---
+
+## Scaling Collaboration with GitLab
+
+For teams larger than 2-3 people, Workshop Studio's built-in git repo (limited to 42 users) may not be enough. The recommended approach is to use GitLab as the development repo and sync to Workshop Studio for publishing.
+
+Source: Marco Sommella's guide — "How to collaborate and scale on Workshop Studio with GitLab"
+
+### Architecture
+
+| Repository | Purpose | Access |
+|-----------|---------|--------|
+| **Production** (Workshop Studio) | Built and published publicly | Core Team only (write) |
+| **Development** (GitLab) | Concurrent development, issues, merge requests | All contributors |
+
+### Roles
+
+- **Core Team Member**: Owns the workshop, manages permissions, merges to production
+- **Contributor**: Develops new modules or fixes, works on feature branches, submits merge requests
+
+### Initial Setup (One-Time)
+
+```bash
+# 1. Create GitLab project (without README)
+# 2. Clone GitLab repo
+git clone git@ssh.gitlab.aws.dev:<your-repo>.git
+
+# 3. Get Workshop Studio credentials and clone
+git clone workshopstudio://ws-content-<UUID>/<name>
+
+# 4. Link the two repos
+rm -rf wstudio/.git
+cp -rf wstudio/* gitlab/
+rm -rf wstudio
+cd gitlab
+git checkout -b mainline
+git add .
+git commit -m "Initial commit"
+git push --set-upstream origin mainline
+git remote add wstudio workshopstudio://ws-content-<UUID>/<name>
+git remote -v
+```
+
+After setup, your local git has two remotes:
+- `origin` → GitLab (development)
+- `wstudio` → Workshop Studio (production)
+
+### Contributor Workflow
+
+```bash
+# Pull latest and create feature branch
+git pull
+git checkout -b feature/new-lab-section
+
+# Work, commit, push to GitLab
+git add .
+git commit -m "add new lab section"
+git push
+
+# Create Merge Request on GitLab, assign to Core Team Member
+# Link related issues with # in the MR description
+```
+
+Branch naming convention: `feature/`, `bugfix/`, etc.
+
+### Core Team: Push to Production
+
+```bash
+# After MR is approved and merged on GitLab
+git checkout mainline
+git pull
+
+# Get fresh Workshop Studio credentials, then:
+git push wstudio mainline
+```
+
+### Benefits of This Approach
+
+- **Issue tracking**: Use GitLab Issues for roadmap planning and bug tracking
+- **Code review**: Merge Requests with review/approval before production
+- **Parallel development**: Contributors work on isolated branches
+- **Permission control**: Only Core Team can push to Workshop Studio
+- **Visibility**: Public board for roadmap and progress tracking
+
+---
+
+## Content Quality Checklist
+
+From Workshop Studio Content Hygiene guidelines:
+
+### Before Starting to Author
+
+1. Workshop Studio content must be reviewed and approved by a **Content Champion**
+2. Content is subject to the **Content Lifecycle Policy**
+3. Read the review questionnaire to understand expected quality
+4. Quality principles are borrowed from **Blog Bar Raisers** quality review checklist
+5. Understand **Event Delivery** — how your workshop will be consumed by participants
+6. Make instructions **clear and straightforward**
+7. Keep **security as top priority** when defining Workshop Events
+
+### While Authoring
+
+1. Use **linters** (Markdown Linter, CloudFormation Linter, Workshop Studio Linter)
+2. Follow proper Markdown and CloudFormation syntax
+3. Maintain **consistent screenshot style** across all contributors
+4. Use **Git History** extension to track changes over time
