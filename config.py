@@ -17,7 +17,7 @@ class ModelConfig:
 MODELS: dict[str, ModelConfig] = {
     "claude-opus": ModelConfig(
         slug="claude-opus",
-        model_id="us.anthropic.claude-opus-4-6-v1",
+        model_id="global.anthropic.claude-opus-4-6-v1",
         api_format="anthropic",
         input_price_per_m=15.00,
         output_price_per_m=75.00,
