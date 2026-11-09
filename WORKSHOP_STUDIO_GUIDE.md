@@ -467,9 +467,8 @@ Get credentials from Workshop Studio console → **Credentials** → **Assets ac
 ```bash
 # Set temporary credentials
 export AWS_DEFAULT_REGION="us-east-1"
-export AWS_ACCESS_KEY_ID="ASIA..."
-export AWS_SECRET_ACCESS_KEY="..."
-export AWS_SESSION_TOKEN="..."
+# paste the three temporary credential export lines from
+# Workshop Studio → "Get AWS CLI credentials" here
 
 # Download S3 assets to local
 aws s3 sync s3://ws-assets-us-east-1/<UUID> ./assets
@@ -688,9 +687,8 @@ For workshops with AWS account configs, you may need:
 ```bash
 export WS_REPO_SOURCE="s3"
 export AWS_DEFAULT_REGION="us-east-1"
-export AWS_ACCESS_KEY_ID="..."
-export AWS_SECRET_ACCESS_KEY="..."
-export AWS_SESSION_TOKEN="..."
+# paste the three temporary credential export lines from
+# Workshop Studio → "Get AWS CLI credentials" here
 ./preview_build
 ```
 
@@ -743,9 +741,8 @@ pipx install --index-url https://plugin.us-east-1.prod.workshops.aws \
 ```bash
 export WS_REPO_SOURCE="s3"
 export AWS_DEFAULT_REGION="us-east-1"
-export AWS_ACCESS_KEY_ID="ASIA..."
-export AWS_SECRET_ACCESS_KEY="..."
-export AWS_SESSION_TOKEN="..."
+# paste the three temporary credential export lines from
+# Workshop Studio → "Get AWS CLI credentials" here
 ```
 
 ### Push Workflow
